@@ -1,8 +1,8 @@
 // Just in case. See https://forum.arduino.cc/index.php?topic=158885.0
 // BOF preprocessor bug prevent - insert me on top of your arduino-code
-//#if 1
-//__asm volatile ("nop");
-//#endif
+#if 1
+__asm volatile ("nop");
+#endif
 
 // To quickly switch on and off all Serial.prints,
 // or choose between prints to serial monitor and serial plotter:
@@ -10,7 +10,6 @@
 //#define SILENT
 #ifndef SILENT
 #define DEBUG
-//#define PRINTTIME
 #ifndef DEBUG
 #define PLOTTER
 #endif
@@ -84,14 +83,14 @@ RTC_DS3231 rtc;
 
 #define SDERRORLED CONTROLLINO_D23
 
-int16_t CHECK_MINUTE_INTERVAL_MS = 1000;
-int8_t CURRENT_MINUTE;
-int8_t PREVIOUS_MEASUREMENT_MINUTE;
-int8_t NEXT_MEASUREMENT_MINUTE;
-long PREVIOUS_MINUTE_CHECK_MS;
-int8_t EVERY_X_MINUTES = 10;
+uint16_t CHECK_SECONDS_INTERVAL_MS = 1000;
+uint32_t PREVIOUS_SECOND_CHECK_MS;
+uint32_t CURRENT_SECONDSTIME;
+uint32_t PREVIOUS_MEASUREMENT_SECONDSTIME;
+uint32_t NEXT_MEASUREMENT_SECONDSTIME;
+uint32_t EVERY_X_SECONDS = 60;
 
-int16_t READINGS_PER_MEASUREMENT = 15;
+uint16_t READINGS_PER_MEASUREMENT = 15;
 
 const uint8_t SD1_CS = 53;  // chip select for sd1
 
@@ -202,7 +201,6 @@ void initializeRTC() {
    Thermistor class
   ==============================================================================
 */
-
 class Thermistor {
     int8_t i2cPort;
     Adafruit_ADS1115 adc;
@@ -416,8 +414,6 @@ void getDateAndTime() {
 
   tcaSelect(I2CPORT_RTC);
 
-  // DPRINT("Begin getDateAndTime()...");
-
   uint16_t thisYear;
   int8_t thisMonth, thisDay, thisHour, thisMinute, thisSecond;
 
@@ -433,8 +429,8 @@ void getDateAndTime() {
   sprintf(sdMeasurementFileName, ("%02d-%02d.csv"), thisMonth, thisDay);
   sprintf(sdLogFileName, ("%02d-%02dlog.csv"), thisMonth, thisDay);
   sprintf(sdMeasurementDirName, ("/%02d-%02d"), thisYear, thisMonth);
-  CURRENT_MINUTE = thisMinute;
-
+  CURRENT_SECONDSTIME = now.secondstime();
+  
 }
 
 //------------------------------------------------------------------------------
@@ -447,7 +443,6 @@ void getDateAndTime() {
   boolean header (writing header line or not)
   ------------------------------------------------------------------------------
 */
-
 void sdWrite(int8_t chipSelect, SdFat sd, char* dirName, SdFile sdFile, char* fileName, char* data, bool header) {
 
   //DPRINT("Begin sdWrite()...");
@@ -599,15 +594,15 @@ void setup() {
   //----------------------------------------
   // writing system start line to log file
   //----------------------------------------
-  char howMany[4];
+  char howMany[20];
   strcpy(sdDataLine, dateAndTimeData);
   strcat(sdDataLine, delimiter);
   strcat(sdDataLine, "Hello world. I start now. Number of thermistors in program: ,");
   sprintf(howMany, "%d", thermistorArraySize);
   strcat(sdDataLine, howMany);
   strcat(sdDataLine, delimiter);
-  strcat(sdDataLine, " Every x minutes: ,");
-  sprintf(howMany, "%d", EVERY_X_MINUTES);
+  strcat(sdDataLine, " Every x seconds: ,");
+  sprintf(howMany, "%d", EVERY_X_SECONDS);
   strcat(sdDataLine, howMany);
   strcat(sdDataLine, delimiter);
   strcat(sdDataLine, "  Readings per measurement: ,");
@@ -617,28 +612,28 @@ void setup() {
   headerLine = false;
   sdWrite(SD1_CS, sd1, sdLogDirName, sdLogFile1, sdLogFileName, sdDataLine, headerLine);
 
-  PREVIOUS_MINUTE_CHECK_MS = millis() - 1000;
-  PREVIOUS_MEASUREMENT_MINUTE = CURRENT_MINUTE - EVERY_X_MINUTES;
-  NEXT_MEASUREMENT_MINUTE = CURRENT_MINUTE;
-  if (NEXT_MEASUREMENT_MINUTE > 59) NEXT_MEASUREMENT_MINUTE -= 60;
+  // This is to "prime the pump" and make sure first measurements are done
+  // immediately at the first loop():
+  PREVIOUS_SECOND_CHECK_MS = millis() - CHECK_SECONDS_INTERVAL_MS;
+  PREVIOUS_MEASUREMENT_SECONDSTIME = CURRENT_SECONDSTIME - EVERY_X_SECONDS;
+  NEXT_MEASUREMENT_SECONDSTIME = CURRENT_SECONDSTIME;
 
 }
 
 //------------------------------------------------------------------------------
 
 void loop() {
-
-  if (millis() - PREVIOUS_MINUTE_CHECK_MS >= CHECK_MINUTE_INTERVAL_MS) {
-    PREVIOUS_MINUTE_CHECK_MS = millis();
+  
+  if (millis() - PREVIOUS_SECOND_CHECK_MS >= CHECK_SECONDS_INTERVAL_MS) {
+    PREVIOUS_SECOND_CHECK_MS = millis();
     getDateAndTime();
   }
 
-  if (CURRENT_MINUTE >= NEXT_MEASUREMENT_MINUTE && PREVIOUS_MEASUREMENT_MINUTE != CURRENT_MINUTE) {
+  if (CURRENT_SECONDSTIME >= NEXT_MEASUREMENT_SECONDSTIME
+      && PREVIOUS_MEASUREMENT_SECONDSTIME != CURRENT_SECONDSTIME) {
 
-    PREVIOUS_MEASUREMENT_MINUTE = CURRENT_MINUTE;
-    NEXT_MEASUREMENT_MINUTE = CURRENT_MINUTE + EVERY_X_MINUTES;
-
-    if (NEXT_MEASUREMENT_MINUTE > 59) NEXT_MEASUREMENT_MINUTE -= 60;
+    PREVIOUS_MEASUREMENT_SECONDSTIME = CURRENT_SECONDSTIME;
+    NEXT_MEASUREMENT_SECONDSTIME = CURRENT_SECONDSTIME + EVERY_X_SECONDS;
 
     strcpy(sdDataLine, "NO_DATA"); // just to make sure that the buffer is empty from previous measurements
 
@@ -664,3 +659,8 @@ void loop() {
 }
 
 //------------------------------------------------------------------------------
+
+
+
+
+// To keep the correct number of lines. :)
