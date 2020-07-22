@@ -15,6 +15,12 @@ __asm volatile ("nop");
 #endif
 #endif
 
+// To calibrate sensors: getting a measurement, comparing results (raw values)
+// and giving each sensor (in this iteration all thermistors) a simple value
+// that is added or subtracted from each reading value before calculations.
+// In this iteration, just printing it out to serial.
+#define CALIBRATION
+
 // This makes it easy to turn debugging messages
 // on or off, by defining DEBUG above:
 #include <DebugMacros.h>
@@ -88,11 +94,11 @@ uint32_t PREVIOUS_SECOND_CHECK_MS;
 uint32_t CURRENT_SECONDSTIME;
 uint32_t PREVIOUS_MEASUREMENT_SECONDSTIME;
 uint32_t NEXT_MEASUREMENT_SECONDSTIME;
-uint32_t EVERY_X_SECONDS = 60;
+uint32_t EVERY_X_SECONDS = 30;
 
-uint16_t READINGS_PER_MEASUREMENT = 15;
+uint16_t READINGS_PER_MEASUREMENT = 10;
 
-const uint8_t SD1_CS = 53;  // chip select for sd1
+const uint8_t SD1_CS = 7; //53;  // chip select for sd1
 
 SdFat sd1;
 SdFile sdMeasurementFile1;
@@ -206,15 +212,17 @@ class Thermistor {
     Adafruit_ADS1115 adc;
     int8_t adcChannel;
     int8_t adcRelay;
+    int16_t calibrationValue;
 
     //------------------------------------------------------------------------------
 
   public:
-    Thermistor (int8_t port, Adafruit_ADS1115 &ads1115, int8_t channel, int8_t relay) {
+    Thermistor (int8_t port, Adafruit_ADS1115 &ads1115, int8_t channel, int8_t relay, int16_t calibration) {
       i2cPort = port;
       adc = ads1115;
       adcChannel = channel;
       adcRelay = relay;
+      calibrationValue = calibration;
     }
     char * getMeasurementBuffer = (char*) malloc (30);
     int16_t numberOfReadings;
@@ -226,6 +234,8 @@ class Thermistor {
       tcaSelect(i2cPort);
 
       if ( int16_t reading = adc.readADC_SingleEnded(adcChannel) ) {
+
+	reading += calibrationValue;
 
         numberOfReadings++;
         measurementStat.add(reading);
@@ -248,7 +258,7 @@ class Thermistor {
 
     char * getMeasurement() {
 
-      DPRINT("Begin getMeasurement...");
+      //DPRINT("Begin getMeasurement...");
 
       float measurementAverage;
       char measurementValueBuffer[20];
@@ -261,7 +271,7 @@ class Thermistor {
         measurementTemperature = steinhartCalculation(measurementAverage);
         measurementPopStDev =  measurementStat.pop_stdev();
 
-        DPRINT("Begin writing getMeasurementBuffer...");
+        //DPRINT("Begin writing getMeasurementBuffer...");
 
         dtostrf(measurementTemperature, 5, 2, measurementValueBuffer);
         strcpy(getMeasurementBuffer, measurementValueBuffer);
@@ -283,8 +293,8 @@ class Thermistor {
         strcpy(getMeasurementBuffer, noValueBuffer);
       }
 
-      DPRINT("Returning getMeasurementBuffer of: ");
-      DPRINTLN(getMeasurementBuffer);
+      //DPRINT("Returning getMeasurementBuffer of: ");
+      //DPRINTLN(getMeasurementBuffer);
 
       return getMeasurementBuffer;
 
@@ -329,6 +339,47 @@ class Thermistor {
 
 //==============================================================================
 
+
+
+//------------------------------------------------------I2CPORT_0-------
+Thermistor thermistor_0_0_1(I2CPORT_0, port_0_adc_0, 1, port0adc0Relay, 245);
+Thermistor thermistor_0_0_3(I2CPORT_0, port_0_adc_0, 3, port0adc0Relay, 245);
+
+Thermistor thermistor_0_1_1(I2CPORT_0, port_0_adc_1, 1, port0adc1Relay, 245);
+Thermistor thermistor_0_1_3(I2CPORT_0, port_0_adc_1, 3, port0adc1Relay, 245);
+
+Thermistor thermistor_0_2_1(I2CPORT_0, port_0_adc_2, 1, port0adc2Relay, 245);
+Thermistor thermistor_0_2_3(I2CPORT_0, port_0_adc_2, 3, port0adc2Relay, 245);
+//------------------------------------------------------I2CPORT_1-------
+Thermistor thermistor_1_0_0(I2CPORT_1, port_1_adc_0, 0, port1adc0Relay, 245);
+Thermistor thermistor_1_0_1(I2CPORT_1, port_1_adc_0, 1, port1adc0Relay, 245);
+Thermistor thermistor_1_0_2(I2CPORT_1, port_1_adc_0, 2, port1adc0Relay, 245);
+Thermistor thermistor_1_0_3(I2CPORT_1, port_1_adc_0, 3, port1adc0Relay, 245);
+
+Thermistor thermistor_1_1_0(I2CPORT_1, port_1_adc_1, 0, port1adc1Relay, 245);
+Thermistor thermistor_1_1_1(I2CPORT_1, port_1_adc_1, 1, port1adc1Relay, 245);
+Thermistor thermistor_1_1_2(I2CPORT_1, port_1_adc_1, 2, port1adc1Relay, 245);
+Thermistor thermistor_1_1_3(I2CPORT_1, port_1_adc_1, 3, port1adc1Relay, 245);
+
+Thermistor thermistor_1_2_0(I2CPORT_1, port_1_adc_2, 0, port1adc2Relay, 245);
+Thermistor thermistor_1_2_1(I2CPORT_1, port_1_adc_2, 1, port1adc2Relay, 245);
+Thermistor thermistor_1_2_2(I2CPORT_1, port_1_adc_2, 2, port1adc2Relay, 245);
+Thermistor thermistor_1_2_3(I2CPORT_1, port_1_adc_2, 3, port1adc2Relay, 245);
+
+Thermistor thermistor_1_3_0(I2CPORT_1, port_1_adc_3, 0, port1adc3Relay, 245);
+Thermistor thermistor_1_3_1(I2CPORT_1, port_1_adc_3, 1, port1adc3Relay, 245);
+Thermistor thermistor_1_3_2(I2CPORT_1, port_1_adc_3, 2, port1adc3Relay, 245);
+Thermistor thermistor_1_3_3(I2CPORT_1, port_1_adc_3, 3, port1adc3Relay, 245);
+//------------------------------------------------------I2CPORT_2-------
+Thermistor thermistor_2_0_0(I2CPORT_2, port_2_adc_0, 0, port2adc0Relay, 245);
+Thermistor thermistor_2_0_1(I2CPORT_2, port_2_adc_0, 1, port2adc0Relay, 245);
+Thermistor thermistor_2_0_2(I2CPORT_2, port_2_adc_0, 2, port2adc0Relay, 245);
+Thermistor thermistor_2_0_3(I2CPORT_2, port_2_adc_0, 3, port2adc0Relay, 245);
+//------------------------------------------------------I2CPORT_RTC----
+// Only RTC in I2CPORT_RTC!
+
+/*
+
 //------------------------------------------------------I2CPORT_0-------
 Thermistor thermistor_0_0_1(I2CPORT_0, port_0_adc_0, 1, port0adc0Relay);
 Thermistor thermistor_0_0_3(I2CPORT_0, port_0_adc_0, 3, port0adc0Relay);
@@ -365,6 +416,8 @@ Thermistor thermistor_2_0_2(I2CPORT_2, port_2_adc_0, 2, port2adc0Relay);
 Thermistor thermistor_2_0_3(I2CPORT_2, port_2_adc_0, 3, port2adc0Relay);
 //------------------------------------------------------I2CPORT_RTC----
 // Only RTC in I2CPORT_RTC!
+
+*/
 
 Thermistor thermistorArray[] = {
   thermistor_0_0_1,
@@ -480,7 +533,7 @@ void sdWrite(int8_t chipSelect, SdFat sd, char* dirName, SdFile sdFile, char* fi
     }
   }
 
-  //DPRINT(" DATA: "); DPRINT(data);
+  DPRINT(" DATA: "); DPRINTLN(data);
   if (! (sdFile.println(data)) ) {
     errorBlink(SDERRORLED);
     sd.errorExit("println(data)");
@@ -488,7 +541,7 @@ void sdWrite(int8_t chipSelect, SdFat sd, char* dirName, SdFile sdFile, char* fi
 
   sdFile.close();
 
-  DPRINTLN(" ...end sdWrite().");
+  //DPRINTLN(" ...end sdWrite().");
 }
 
 //------------------------------------------------------------------------------
